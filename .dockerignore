@@ -1,0 +1,42 @@
+# Ignorar
+.git
+.gitignore
+README.md
+Dockerfile
+docker-compose.yml
+.env
+.env.example
+env.example
+*.md
+
+# Arquivos de banco SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# VMS
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
