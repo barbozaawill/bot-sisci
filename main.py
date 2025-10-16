@@ -88,6 +88,25 @@ async def topico(interaction: discord.Interaction, assunto:str, cliente: int, co
             type=discord.ChannelType.public_thread,
             reason=f"Tópico criado por: {interaction.user.name}"
         )
+        
+        # Criando o embed com as informações do suporte
+        embed = discord.Embed(
+            title="🎫 Novo Suporte Interno",
+            description="Tópico de suporte criado com sucesso!",
+            color=0x00ff00
+        )
+        
+        embed.add_field(name="👤 Cliente ID", value=str(cliente), inline=True)
+        embed.add_field(name="📞 Contato", value=contato, inline=True)
+        embed.add_field(name="📧 E-mail", value=email, inline=True)
+        embed.add_field(name="📝 Assunto", value=assunto, inline=False)
+        embed.add_field(name="👨‍💼 Solicitante", value=interaction.user.mention, inline=True)
+        embed.add_field(name="📅 Data/Hora", value=f"<t:{int(interaction.created_at.timestamp())}:F>", inline=True)
+        
+        embed.set_footer(text="Use /fim para finalizar este tópico")
+        
+        # Enviando o embed no thread criado
+        await thread.send(embed=embed)
 
     except  Exception as e:
         print(f"Erro no comando topico: {e}")
@@ -179,7 +198,7 @@ async def fim(interaction: discord.Interaction):
         assunto = thread.name.replace("🎫 ", "") 
 
         # Vai buscaar a primeiraa mensagem do bot que é o EMBED com as informações que vão ser salvas no banco
-        async for message in thread.history(limite=None, oldest_first=True):
+        async for message in thread.history(limit=None, oldest_first=True):
             if message.author.bot and message.embeds:
                 embed = message.embeds[0]
                 if embed.title == "🎫 Novo Suporte Interno":
