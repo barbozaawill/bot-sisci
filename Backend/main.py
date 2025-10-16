@@ -30,56 +30,28 @@ bot = SuporteInterno()
 
 @bot.tree.command(name="topico", description="Cria um novo tópico de suporte")
 async def topico(interaction: discord.Interaction, assunto:str, cliente: int, contato: str, email: str):
-    responded = False
+    # VALIDAÇÕES PRIMEIRO - antes de responder ao Discord (evita timeout)
+    if contato.isdigit() or len(contato.strip()) < 3:
+        await interaction.response.send_message("❌ O campo 'contato' deve conter texto válido (mínimo 3 caracteres), não apenas números!", ephemeral=True)
+        return
+    if len(email.strip()) < 5:
+        await interaction.response.send_message("❌ O campo 'email' deve conter um email válido (mínimo 5 caracteres)!", ephemeral=True)
+        return
+    if len(assunto.strip()) < 3:
+        await interaction.response.send_message("❌ O campo 'assunto' deve conter texto válido (mínimo 3 caracteres)!", ephemeral=True)
+        return
+    if "@" not in email or "." not in email or email.count("@") != 1:
+        await interaction.response.send_message("❌ Por favor, insira um e-mail válido!", ephemeral=True)
+        return
 
-    # Try pra tentar responder de várias formas visando outros tipos de erros, o discord tem um tempo de 3 segundos praa respostasa em tópicos, com isso da pra aumentar em até 15 min pra que não de 404
+    # RESPOSTA RÁPIDA - dentro dos 3 segundos
     try:
         await interaction.response.send_message("⏳ Criando tópico de suporte...")
-        responded = True
-    except discord.InteractionResponded:
-        responded = True
-    except discord.NotFound:
-        print(f"Interaction expiraada para /topico - usuário: {interaction.user.name}")
-        try:
-            await interaction.channel.send("⏳ Criando tópico de suporte...")
-            responded = True
-        except:
-            print(f"Erro no comando /topico - usuário: {interaction.user.name} - Canal: {interaction.channel.name if interaction.channel else None}")
-            return
-    except Exception as defer_error:
-        # Esse erro de defer é o 404 por falta de tempo para preencher e responder o /topico 
-        print(f"Erro no defer do comando /topico: {defer_error}")
-        try:
-            await interaction.response.send_message("⏳ Criando tópico de suporte...")
-            responded = True
-        except:
-            print(f"Erro no comando /topico - usuário: {interaction.user.name} - Canal: {interaction.channel.name if interaction.channel else None}")
-            return
+    except Exception as e:
+        print(f"Erro ao responder /topico: {e}")
+        return
     
     try:
-        # Constructo pra aajudar o envio de mensagens
-        async def send_message(msg):
-            if responded:
-                try:
-                    await interaction.followup.send(msg)
-                except:
-                    await interaction.channel.send(msg)
-            else:
-                await interaction.channel.send(msg)
-        
-        # Algumas validações pros campos de código de cliente, assunto e etc
-        if contato.isdigit() or len(contato.strip()) < 3:
-            await send_message("❌ O campo 'contato' deve conter texto válido (mínimo 3 caracteres), não apenas números!")
-            return
-        if len(email.strip()) < 5:
-            await send_message("❌ O campo 'email' deve conter um email válido (mínimo 5 caracteres)!")
-            return
-        if len(assunto.strip()) < 3:
-            await send_message("❌ O campo 'assunto' deve conter texto válido (mínimo 3 caracteres)!")
-            return
-        if "@" not in email or "." not in email or email.count("@") != 1:
-            await send_message("❌ Por favor, insira um e-mail válido!")
-            return
         
         # Aqui cria uma thread pro discord, ele não deixa o "assunto" ter mais de 100 caracteres, mas da pra reduzir a quantidade na preview do tópico para mostrar inteiro dentro dele (meio que burlando a regra)
         if len(assunto) > 90:
@@ -125,53 +97,26 @@ async def topico(interaction: discord.Interaction, assunto:str, cliente: int, co
 
 @bot.tree.command(name="fim", description="Finaliza o tópico de suporte e salva no banco de dados")
 async def fim(interaction: discord.Interaction):
-    #Aqui o bot vai verificar se ele está num tópico antes de finalizar ecomeçar a gravar as mensagens e etc
+    # Verificação rápida se está em um tópico
     if not isinstance(interaction.channel, discord.Thread):
-        try:
-            await interaction.response.send_message("❌ Este comando só pode ser usado dentro de um tópico de suporte!")
-        except:
-            try:
-                await interaction.channel.send("❌ Este comando só pode ser usado dentro de um tópico de suporte!")
-            except: 
-                pass
+        await interaction.response.send_message("❌ Este comando só pode ser usado dentro de um tópico de suporte!", ephemeral=True)
         return
     
-    responded = False
-
-    # Try pra tentar responder de várias formas dependendo do contexto
+    # Resposta rápida
     try:
         await interaction.response.send_message("⏳ Finalizando tópico e salvando no banco...")
-        responded = True
-    except discord.InteractionResponded:
-        responded = True
-    except discord.NotFound:
-        print(f"Interaction expirada para /fim - usuário {interaction.user.name}")
-        try:
-            await interaction.channel.send("⏳ Finalizando tópico e salvando no banco...")
-            responded = True
-        except:
-            print(f"Erro no comando /fim - usuário: {interaction.user.name} - Canal: {interaction.channel.name if interaction.channel else None}")
-            return
-    except Exception as defer_error:
-        print(f"Erro no defer do comando /fim: {defer_error}")
-        try:
-            await interaction.response.send_message("⏳ Finalizando tópico e salvando no banco...")
-            responded = True
-        except:
-            print(f"Erro no comando /fim - usuário: {interaction.user.name} - Canal: {interaction.channel.name if interaction.channel else None}")
-            return
+    except Exception as e:
+        print(f"Erro ao responder /fim: {e}")
+        return
         
     try:
         thread = interaction.channel
 
-        # Construtor pra enviar as mensagens
+        # Função para enviar mensagens usando followup
         async def send_message(msg):
-            if responded:
-                try:
-                    await interaction.followup.send(msg)
-                except:
-                    await thread.send(msg)
-            else:
+            try:
+                await interaction.followup.send(msg)
+            except:
                 await thread.send(msg)
         
         # Coletando toda a conversa do tópico...
@@ -254,31 +199,27 @@ async def fim(interaction: discord.Interaction):
     except Exception as e: 
         print(f"Erro no comando fim: {e}")
         try:
-            if responded:
-                await interaction.followup.send("❌ Ocorreu um erro ao processar o comando. Tente novamente.")
-            else:
-                await interaction.channel.send("❌ Ocorreu um erro ao processar o comando. Tente novamente.")
+            await interaction.followup.send("❌ Ocorreu um erro ao processar o comando. Tente novamente.")
         except Exception as send_error:
             print(f"Erro ao enviar a mensagem de erro no /fim: {send_error}")
              
 @bot.tree.command(name="buscar", description="Busca um suporte específico pelo ID da thread")
-async def buscar(interaction: discord.Client, thread_id: str):
+async def buscar(interaction: discord.Interaction, thread_id: str):
+    # Validação rápida do ID
+    try:
+        thread_id_int = int(thread_id)
+    except ValueError:
+        await interaction.response.send_message("❌ **ID do thread deve ser um número!** Exemplo: `/buscar 1428114037769638029`", ephemeral=True)
+        return
+    
+    # Resposta rápida
     try:
         await interaction.response.send_message("⏳ Buscando suporte...")
-    except Exception as defer_error:
-        print(f"Erro no defer {defer_error}")
-        try:
-            await interaction.response.send_message("⏳ Buscando suporte...")
-        except:
-            return
+    except Exception as e:
+        print(f"Erro ao responder /buscar: {e}")
+        return
     
     try:
-        try:
-            thread_id_int = int(thread_id)
-        except ValueError:
-            await interaction.followup.send("❌ **ID do thread deve ser um número!** Exemplo: `/buscar 1428114037769638029")
-            return
-        
         suporte = db.buscar_suporte_por_thread(thread_id_int)
 
         if not suporte:
