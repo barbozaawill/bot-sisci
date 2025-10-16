@@ -3,9 +3,12 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 import os 
+import sys
+from pathlib import Path
 from db import db
 
-load_dotenv()
+parent_dir = Path(__file__).parent.parent
+load_dotenv(parent_dir / ".env")
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 
@@ -176,12 +179,12 @@ async def fim(interaction: discord.Interaction):
         async for message in thread.history(limit=None):
             if not message.author.bot: # Ignorando oq o bot escreve dentro do tópico
                 timestamp = message.created_at.strftime("%d%m%Y %H %M")
-                mensagens.append(f"{[timestamp]} {message.author.name}:{message.content}")
+                mensagens.append(f"[{timestamp}] {message.author.name}: {message.content}")
 
         mensagens.reverse()
         assunto2 = "\n".join(mensagens)
 
-        participantes = []
+        participantes = {}
         async for message in thread.history(limit=None):
             if not message.author.bot:
                 user = message.author
@@ -258,4 +261,62 @@ async def fim(interaction: discord.Interaction):
         except Exception as send_error:
             print(f"Erro ao enviar a mensagem de erro no /fim: {send_error}")
              
+@bot.tree.command(name="buscar", description="Busca um suporte específico pelo ID da thread")
+async def buscar(interaction: discord.Client, thread_id: str):
+    try:
+        await interaction.response.send_message("⏳ Buscando suporte...")
+    except Exception as defer_error:
+        print(f"Erro no defer {defer_error}")
+        try:
+            await interaction.response.send_message("⏳ Buscando suporte...")
+        except:
+            return
+    
+    try:
+        try:
+            thread_id_int = int(thread_id)
+        except ValueError:
+            await interaction.followup.send("❌ **ID do thread deve ser um número!** Exemplo: `/buscar 1428114037769638029")
+            return
+        
+        suporte = db.buscar_suporte_por_thread(thread_id_int)
+
+        if not suporte:
+            await interaction.followup.send(f"❌ **Nenhum suporte encontrado com Thread ID: {thread_id}**")
+            return
+        
+        id_suporte, codigo_cliente, contato, email, assunto, assunto2, participantes_json, thread_id_db, data_criacao, data_fechamento = suporte
+
+        import json
+        participantes = json.loads(participantes_json)
+
+        embed = discord.Embed(
+            title=f"🎫 Suporte #{id_suporte}",
+            color=0x00ff00,
+            timestamp=discord.utils.utcnow()
+        )
+
+        embed.add_field(name="👤 Cliente ID", value=str(codigo_cliente), inline=True)
+        embed.add_field(name="📞 Contato", value=contato, inline=True)
+        embed.add_field(name="📧 Email", value=email, inline=True)
+        embed.add_field(name="📝 Assunto", value=assunto, inline=False)
+        embed.add_field(name="🆔 Thread ID", value=str(thread_id_db), inline=True)
+        embed.add_field(name="📅 Fechado em", value=str(data_fechamento), inline=True)
+
+        participantes_texto = ""
+        for p in participantes:
+            cargos = ", ".join(p['cargos']) if p['cargos'] else "Sem cargos"
+            participantes_texto += f"• **{p['nome']}** - {cargos}\n"
+
+        embed.add_field(name="👥 Participantes", value=participantes_texto or "Nenhum", inline=False)
+
+        mensagens_preview = assunto2[:500] + "..." if len(assunto2) > 500 else assunto2
+        embed.add_field(name="💬 Conversa (Preview)", value=f"```{mensagens_preview}```", inline=False)
+
+        await interaction.followup.send(embed=embed)
+
+    except Exception as e:
+        print(f"Erro no comando buscar: {e}")
+        await interaction.followup.send("❌ Erro ao buscar suporte.")
+
 bot.run(TOKEN)
