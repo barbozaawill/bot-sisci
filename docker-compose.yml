@@ -1,28 +1,36 @@
 version: '3.8'
 
 services:
-  # Serviço do PostgreSQL
   postgres:
     image: postgres:15-alpine
     container_name: bot-sisci-postgres
+    hostname: bot-sisci-db
     environment:
       POSTGRES_DB: suporte_interno
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
+      # config para acesso público
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=md5"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgresql.conf:/var/lib/postgresql/data/postgresql.conf
+      - ./pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
     ports:
       - "5432:5432"
     networks:
-      - bot-network
+      bot-network:
+        aliases:
+          - bot-sisci-db
+          - postgres-db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Serviço do Bot Discord
+  # Serviço do Bot 
   bot:
     build: .
     container_name: bot-sisci

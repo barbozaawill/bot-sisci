@@ -40,11 +40,16 @@ docker-compose up -d
 
 ## Banco de dados
 
-**Credenciais padrão:**
-- Host: `localhost:5432`
+**Acesso local (mesmo PC):**
+- Host: `localhost`
+- Porta: `5432`
 - Banco: `suporte_interno` 
 - Usuário: `postgres`
 - Senha: `postgres123`
+
+**Acesso de outros PCs:**
+- Configure o hostname seguindo: `CONFIGURAR-ACESSO.md`
+- Depois use: Host `bot-sisci-db`, Porta `5432`
 
 **Tabela principal:** `suporte_interno`
 - Salva dados do cliente, conversa completa e participantes
