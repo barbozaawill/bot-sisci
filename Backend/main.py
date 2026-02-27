@@ -1,263 +1,44 @@
 import discord
-from discord import app_commands
 from discord.ext import commands
+from discord import app_commands
 from dotenv import load_dotenv
-import os 
-import sys
 from pathlib import Path
-from db import db
+import asyncio
+import os
 
 parent_dir = Path(__file__).parent.parent
 load_dotenv(parent_dir / ".env")
 TOKEN = os.getenv("DISCORD_TOKEN")
 
+COGS = [
+    "cogs.topico",
+    "cogs.fim",
+    "cogs.buscar",
+]
+
 
 class SuporteInterno(discord.Client):
     def __init__(self):
         intents = discord.Intents.all()
-        super().__init__(
-            intents=intents
-        )
+        super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
-    
+
     async def setup_hook(self):
+        for cog in COGS:
+            try:
+                # Importa e registra os comandos de cada cog
+                module = __import__(cog, fromlist=["setup"])
+                await module.setup(self)
+                print(f"✅ Cog carregado: {cog}")
+            except Exception as e:
+                print(f"❌ Erro ao carregar cog {cog}: {e}")
+
         await self.tree.sync()
-    
+        print("🔄 Comandos sincronizados com o Discord.")
+
     async def on_ready(self):
-        print(f"O bot {self.user} foi ligado com sucesso.")
+        print(f"🤖 Bot {self.user} ligado com sucesso.")
+
 
 bot = SuporteInterno()
-
-@bot.tree.command(name="topico", description="Cria um novo tópico de suporte")
-async def topico(interaction: discord.Interaction, assunto:str, cliente: int, contato: str, email: str):
-    # VALIDAÇÕES PRIMEIRO - antes de responder ao Discord (evita timeout)
-    if contato.isdigit() or len(contato.strip()) < 3:
-        await interaction.response.send_message("❌ O campo 'contato' deve conter texto válido (mínimo 3 caracteres), não apenas números!", ephemeral=True)
-        return
-    if len(email.strip()) < 5:
-        await interaction.response.send_message("❌ O campo 'email' deve conter um email válido (mínimo 5 caracteres)!", ephemeral=True)
-        return
-    if len(assunto.strip()) < 3:
-        await interaction.response.send_message("❌ O campo 'assunto' deve conter texto válido (mínimo 3 caracteres)!", ephemeral=True)
-        return
-    if "@" not in email or "." not in email or email.count("@") != 1:
-        await interaction.response.send_message("❌ Por favor, insira um e-mail válido!", ephemeral=True)
-        return
-
-    # RESPOSTA RÁPIDA - dentro dos 3 segundos
-    try:
-        await interaction.response.send_message("⏳ Criando tópico de suporte...")
-    except Exception as e:
-        print(f"Erro ao responder /topico: {e}")
-        return
-    
-    try:
-        
-        # Aqui cria uma thread pro discord, ele não deixa o "assunto" ter mais de 100 caracteres, mas da pra reduzir a quantidade na preview do tópico para mostrar inteiro dentro dele (meio que burlando a regra)
-        if len(assunto) > 90:
-            thread_name = f"🎫 {assunto[:87]}..."
-        else:
-            thread_name = f"🎫 {assunto}"
-        thread = await interaction.channel.create_thread(
-            name=thread_name,
-            type=discord.ChannelType.public_thread,
-            reason=f"Tópico criado por: {interaction.user.name}"
-        )
-        
-        # Criando o embed com as informações do suporte
-        embed = discord.Embed(
-            title="🎫 Novo Suporte Interno",
-            description="Tópico de suporte criado com sucesso!",
-            color=0x00ff00
-        )
-        
-        embed.add_field(name="👤 Cliente ID", value=str(cliente), inline=True)
-        embed.add_field(name="📞 Contato", value=contato, inline=True)
-        embed.add_field(name="📧 E-mail", value=email, inline=True)
-        embed.add_field(name="📝 Assunto", value=assunto, inline=False)
-        embed.add_field(name="👨‍💼 Solicitante", value=interaction.user.mention, inline=True)
-        embed.add_field(name="📅 Data/Hora", value=f"<t:{int(interaction.created_at.timestamp())}:F>", inline=True)
-        
-        embed.set_footer(text="Use /fim para finalizar este tópico")
-        
-        # Enviando o embed no thread criado
-        await thread.send(embed=embed)
-
-    except  Exception as e:
-        print(f"Erro no comando topico: {e}")
-        try:
-            # Como ta sendo usendo defer lá em cima, precisa ser usado followup pois se não o discord não entende como sendo uma mensagem nova e buga
-            await interaction.followup.send("❌ Ocorreu um erro ao processar o comando. Tente novamente.")
-        except Exception as followup_error:
-            print(f"Erro no followup: {followup_error}")
-            try:
-                await interaction.channel.send("❌ Erro interno do bot. Tente novamente.")
-            except:
-                pass
-
-@bot.tree.command(name="fim", description="Finaliza o tópico de suporte e salva no banco de dados")
-async def fim(interaction: discord.Interaction):
-    # Verificação rápida se está em um tópico
-    if not isinstance(interaction.channel, discord.Thread):
-        await interaction.response.send_message("❌ Este comando só pode ser usado dentro de um tópico de suporte!", ephemeral=True)
-        return
-    
-    # Resposta rápida
-    try:
-        await interaction.response.send_message("⏳ Finalizando tópico e salvando no banco...")
-    except Exception as e:
-        print(f"Erro ao responder /fim: {e}")
-        return
-        
-    try:
-        thread = interaction.channel
-
-        # Função para enviar mensagens usando followup
-        async def send_message(msg):
-            try:
-                await interaction.followup.send(msg)
-            except:
-                await thread.send(msg)
-        
-        # Coletando toda a conversa do tópico...
-        mensagens = []
-        async for message in thread.history(limit=None):
-            if not message.author.bot: # Ignorando oq o bot escreve dentro do tópico
-                timestamp = message.created_at.strftime("%d%m%Y %H %M")
-                mensagens.append(f"[{timestamp}] {message.author.name}: {message.content}")
-
-        mensagens.reverse()
-        assunto2 = "\n".join(mensagens)
-
-        participantes = {}
-        async for message in thread.history(limit=None):
-            if not message.author.bot:
-                user = message.author
-                cargos = [role.name for role in user.roles if role.name != "@everyone"]
-                participantes[user.name] = {
-                    "nome": user.name,
-                    "cargos": cargos,
-                    "id": user.id
-                }
-
-        codigo_cliente = 0
-        contato = "Não informado"
-        email = "Não informado"
-        assunto = thread.name.replace("🎫 ", "") 
-
-        # Vai buscaar a primeiraa mensagem do bot que é o EMBED com as informações que vão ser salvas no banco
-        async for message in thread.history(limit=None, oldest_first=True):
-            if message.author.bot and message.embeds:
-                embed = message.embeds[0]
-                if embed.title == "🎫 Novo Suporte Interno":
-                    for field in embed.fields:
-                            if field.name == "👤 Cliente ID":
-                                try:
-                                    codigo_cliente = int(field.value)
-                                except ValueError:
-                                    codigo_cliente = 0
-                            elif field.name == "📞 Contato":
-                                contato = field.value
-                            elif field.name == "📧 E-mail":
-                                email = field.value
-                            elif field.name == "📝 Assunto":
-                                assunto = field.value
-                    break
-
-        # Salvar as informações recém pegas no banco
-        sucesso = db.salvar_suporte(
-            codigo_cliente=codigo_cliente,
-            contato=contato,
-            email=email,
-            assunto=assunto,
-            assunto2=assunto2,
-            participantes=list(participantes.values()),
-            thread_id=thread.id
-        )
-
-        if sucesso:
-            await send_message(
-                f"✅ **Tópico finalizado com sucesso!**\n"
-                f"📊 **Dados salvos:**\n"
-                f"• Cliente ID: {codigo_cliente}\n"
-                f"• Contato: {contato}\n"
-                f"• Email: {email}\n"
-                f"• Assunto: {assunto}\n"
-                f"• Mensagens coletadas: {len(mensagens)}\n"
-                f"• Participantes: {len(participantes)}\n"
-                f"• Thread ID: {thread.id}\n\n"
-                f"🔒 O tópico será arquivado em alguns segundos..."
-            )
-
-            import asyncio
-            await asyncio.sleep(5)
-            await thread.edit(archived=True, locked=True)
-
-        else:
-            await send_message("❌ Erro ao salvar no banco de dados. Tente novamente.")
-    
-    except Exception as e: 
-        print(f"Erro no comando fim: {e}")
-        try:
-            await interaction.followup.send("❌ Ocorreu um erro ao processar o comando. Tente novamente.")
-        except Exception as send_error:
-            print(f"Erro ao enviar a mensagem de erro no /fim: {send_error}")
-             
-@bot.tree.command(name="buscar", description="Busca um suporte específico pelo ID da thread")
-async def buscar(interaction: discord.Interaction, thread_id: str):
-    # Validação rápida do ID
-    try:
-        thread_id_int = int(thread_id)
-    except ValueError:
-        await interaction.response.send_message("❌ **ID do thread deve ser um número!** Exemplo: `/buscar 1428114037769638029`", ephemeral=True)
-        return
-    
-    # Resposta rápida
-    try:
-        await interaction.response.send_message("⏳ Buscando suporte...")
-    except Exception as e:
-        print(f"Erro ao responder /buscar: {e}")
-        return
-    
-    try:
-        suporte = db.buscar_suporte_por_thread(thread_id_int)
-
-        if not suporte:
-            await interaction.followup.send(f"❌ **Nenhum suporte encontrado com Thread ID: {thread_id}**")
-            return
-        
-        id_suporte, codigo_cliente, contato, email, assunto, assunto2, participantes_json, thread_id_db, data_criacao, data_fechamento = suporte
-
-        import json
-        participantes = json.loads(participantes_json)
-
-        embed = discord.Embed(
-            title=f"🎫 Suporte #{id_suporte}",
-            color=0x00ff00,
-            timestamp=discord.utils.utcnow()
-        )
-
-        embed.add_field(name="👤 Cliente ID", value=str(codigo_cliente), inline=True)
-        embed.add_field(name="📞 Contato", value=contato, inline=True)
-        embed.add_field(name="📧 Email", value=email, inline=True)
-        embed.add_field(name="📝 Assunto", value=assunto, inline=False)
-        embed.add_field(name="🆔 Thread ID", value=str(thread_id_db), inline=True)
-        embed.add_field(name="📅 Fechado em", value=str(data_fechamento), inline=True)
-
-        participantes_texto = ""
-        for p in participantes:
-            cargos = ", ".join(p['cargos']) if p['cargos'] else "Sem cargos"
-            participantes_texto += f"• **{p['nome']}** - {cargos}\n"
-
-        embed.add_field(name="👥 Participantes", value=participantes_texto or "Nenhum", inline=False)
-
-        mensagens_preview = assunto2[:500] + "..." if len(assunto2) > 500 else assunto2
-        embed.add_field(name="💬 Conversa (Preview)", value=f"```{mensagens_preview}```", inline=False)
-
-        await interaction.followup.send(embed=embed)
-
-    except Exception as e:
-        print(f"Erro no comando buscar: {e}")
-        await interaction.followup.send("❌ Erro ao buscar suporte.")
-
 bot.run(TOKEN)

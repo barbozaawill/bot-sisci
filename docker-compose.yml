@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -15,8 +13,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./postgresql.conf:/var/lib/postgresql/data/postgresql.conf
-      - ./pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
     ports:
       - "5432:5432"
     networks:
