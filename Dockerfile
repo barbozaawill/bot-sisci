@@ -20,4 +20,4 @@ COPY . .
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
 
-CMD ["python", "Backend/main.py"]
+CMD ["python", "-u", "-m", "Backend.main"]

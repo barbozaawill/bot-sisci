@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class Setpr(Enum):
+class Setor(str, Enum):
     financeiro = "Financeiro"
     gestao = "Gestao"
     folha = "Folha"

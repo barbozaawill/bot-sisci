@@ -1,10 +1,14 @@
 import discord
 from discord import app_commands
-from enums import Setor
+from discord.ext import commands
+from Backend.enums import Setor
 
 
-async def setup(bot: discord.Client):
-    @bot.tree.command(name="topico", description="Cria um novo tópico de suporte")
+class TopicoCog(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    @app_commands.command(name="topico", description="Cria um novo tópico de suporte")
     @app_commands.describe(
         assunto="Assunto do suporte",
         cliente="ID do cliente",
@@ -13,6 +17,7 @@ async def setup(bot: discord.Client):
         setor="Setor responsável pelo suporte",
     )
     async def topico(
+        self,
         interaction: discord.Interaction,
         assunto: str,
         cliente: int,
@@ -51,7 +56,6 @@ async def setup(bot: discord.Client):
             return
 
         try:
-            # Nome da thread (Discord limita a 100 chars)
             thread_name = f"🎫 {assunto[:87]}..." if len(assunto) > 90 else f"🎫 {assunto}"
 
             thread = await interaction.channel.create_thread(
@@ -65,12 +69,12 @@ async def setup(bot: discord.Client):
                 description="Tópico de suporte criado com sucesso!",
                 color=0x00FF00,
             )
-            embed.add_field(name="👤 Cliente ID",   value=str(cliente),              inline=True)
-            embed.add_field(name="📞 Contato",      value=contato,                   inline=True)
-            embed.add_field(name="📧 E-mail",       value=email,                     inline=True)
-            embed.add_field(name="🏢 Setor",        value=setor.value,               inline=True)
-            embed.add_field(name="📝 Assunto",      value=assunto,                   inline=False)
-            embed.add_field(name="👨‍💼 Solicitante", value=interaction.user.mention,  inline=True)
+            embed.add_field(name="👤 Cliente ID",   value=str(cliente),             inline=True)
+            embed.add_field(name="📞 Contato",      value=contato,                  inline=True)
+            embed.add_field(name="📧 E-mail",       value=email,                    inline=True)
+            embed.add_field(name="🏢 Setor",        value=setor.value,              inline=True)
+            embed.add_field(name="📝 Assunto",      value=assunto,                  inline=False)
+            embed.add_field(name="👨‍💼 Solicitante", value=interaction.user.mention, inline=True)
             embed.add_field(
                 name="📅 Data/Hora",
                 value=f"<t:{int(interaction.created_at.timestamp())}:F>",
@@ -90,3 +94,7 @@ async def setup(bot: discord.Client):
                     await interaction.channel.send("❌ Erro interno do bot. Tente novamente.")
                 except Exception:
                     pass
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(TopicoCog(bot))

@@ -1,13 +1,17 @@
 import json
 import discord
 from discord import app_commands
-from db import db
+from discord.ext import commands
+from Backend.db import db
 
 
-async def setup(bot: discord.Client):
-    @bot.tree.command(name="buscar", description="Busca um suporte específico pelo ID da thread")
+class BuscarCog(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    @app_commands.command(name="buscar", description="Busca um suporte específico pelo ID da thread")
     @app_commands.describe(thread_id="ID da thread do Discord")
-    async def buscar(interaction: discord.Interaction, thread_id: str):
+    async def buscar(self, interaction: discord.Interaction, thread_id: str):
         try:
             thread_id_int = int(thread_id)
         except ValueError:
@@ -41,13 +45,13 @@ async def setup(bot: discord.Client):
                 color=0x00FF00,
                 timestamp=discord.utils.utcnow(),
             )
-            embed.add_field(name="👤 Cliente ID",  value=str(codigo_cliente), inline=True)
-            embed.add_field(name="📞 Contato",     value=contato,             inline=True)
-            embed.add_field(name="📧 Email",       value=email,               inline=True)
-            embed.add_field(name="🏢 Setor",       value=setor,               inline=True)
-            embed.add_field(name="📝 Assunto",     value=assunto,             inline=False)
-            embed.add_field(name="🆔 Thread ID",   value=str(thread_id_db),   inline=True)
-            embed.add_field(name="📅 Fechado em",  value=str(data_fechamento),inline=True)
+            embed.add_field(name="👤 Cliente ID",  value=str(codigo_cliente),  inline=True)
+            embed.add_field(name="📞 Contato",     value=contato,              inline=True)
+            embed.add_field(name="📧 Email",       value=email,                inline=True)
+            embed.add_field(name="🏢 Setor",       value=setor,                inline=True)
+            embed.add_field(name="📝 Assunto",     value=assunto,              inline=False)
+            embed.add_field(name="🆔 Thread ID",   value=str(thread_id_db),    inline=True)
+            embed.add_field(name="📅 Fechado em",  value=str(data_fechamento), inline=True)
 
             participantes_texto = "\n".join(
                 f"• **{p['nome']}** - {', '.join(p['cargos']) if p['cargos'] else 'Sem cargos'}"
@@ -63,3 +67,7 @@ async def setup(bot: discord.Client):
         except Exception as e:
             print(f"[/buscar] Erro: {e}")
             await interaction.followup.send("❌ Erro ao buscar suporte.")
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(BuscarCog(bot))
