@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bot-sisci-postgres
+    hostname: botsisci
+    environment:
+      POSTGRES_DB: botsisci
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_HOST_AUTH_METHOD: md5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:               # FIX: era "newtworks" (typo)
+      bot-network:
+        aliases:
+          - bot-si-sci-db
+          - postgres-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]  # FIX: era "pg isready" (faltava underline)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: .
+    container_name: bot-sisci
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}   # FIX: era "$ {DISCORD_TOKEN}" (espaço indevido)
+      GUILD_ID: ${GUILD_ID}             # FIX: mesmo problema
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: botsisci
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+    depends_on:             # FIX: era "depends on:configs:" (sintaxe inválida)
+      postgres:
+        condition: service_healthy
+    networks:               # FIX: estava dentro de depends_on (indentação errada)
+      - bot-network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+networks:
+  bot-network:              # FIX: era "bot-newtwork" (typo)
+
+volumes:
+  postgres_data:
